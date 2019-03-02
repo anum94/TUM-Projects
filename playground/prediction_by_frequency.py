@@ -51,7 +51,7 @@ class PredictionByFreq:
             test_probabilities_by_author[self.JOINT_PROBABILITY].idxmax(), self.AUTHOR]))
 
 
-def pred_by_freq_playground():
+def playground():
     pred_by_freq = PredictionByFreq("../data/train.csv")
     pred_by_freq.calculate_freq_by_element()
 
@@ -62,4 +62,4 @@ def pred_by_freq_playground():
     pred_by_freq.predict_sentence("gun is bloody hell")
 
 
-pred_by_freq_playground()
+playground()
