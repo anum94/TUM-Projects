@@ -4,9 +4,9 @@ import pandas as pd
 import tensorflow as tf
 
 PADWORD = 'PAD'
-training_iterations = 20
+training_iterations = 200
 learning_rate = 0.01
-batch_size = 8
+batch_size = 64
 n_inputs = 0
 n_classes = 3
 n_features = 0
