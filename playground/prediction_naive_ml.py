@@ -5,8 +5,8 @@ import tensorflow as tf
 
 PADWORD = 'PAD'
 training_iterations = 200
-learning_rate = 0.01
-batch_size = 64
+learning_rate = 0.04
+batch_size = 16
 n_inputs = 0
 n_classes = 3
 n_features = 0
@@ -196,7 +196,7 @@ tokenize_data = one_hot_output(tokenize_data)
 #output_labels = tf.convert_to_tensor(convert_output_to_number(list(train_data['author'])))
 data = list(tokenize_data['indexed_text'])
 
-num_test_sample = 10
+num_test_sample = 200
 data_labels = np.array(list(tokenize_data['author']))
 N = len (train_data)
 n_features = len(data[1])
