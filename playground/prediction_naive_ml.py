@@ -162,7 +162,7 @@ class Cnn_Magic:
         out = tf.add(tf.matmul(fc1, weights['out']), biases['out'])
         return out
 # Reading training data
-train_data = read_data("../data/train_sml.csv")
+train_data = read_data("../data/train.csv")
 index_word_dict, word_index_dict = create_word_dict(train_data)
 tokenize_data = tokenize_pad_sentences(train_data, word_index_dict)
 tokenize_data = one_hot_output(tokenize_data)
