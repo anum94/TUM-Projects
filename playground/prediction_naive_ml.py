@@ -67,39 +67,45 @@ class Cnn_Magic:
         self.batch_size = bs
 
         w0 = tf.get_variable('W0', shape=(3, 3, 1, 16), initializer=tf.contrib.layers.xavier_initializer())
-        w1 = tf.get_variable('W1', shape=(3, 3, 16, 64), initializer=tf.contrib.layers.xavier_initializer())
-        w2 = tf.get_variable('W2', shape=(n_features * 64, 128),
-                                     initializer=tf.contrib.layers.xavier_initializer())
+        w1 = tf.get_variable('W1', shape=(3, 3, 16, 32), initializer=tf.contrib.layers.xavier_initializer())
+        w2 = tf.get_variable('W2', shape=(n_features * 32, 128),initializer=tf.contrib.layers.xavier_initializer())
         w3 = tf.get_variable('W3', shape=(128, n_classes), initializer=tf.contrib.layers.xavier_initializer())
+
+
         b0 = tf.get_variable('B0', shape=(16), initializer=tf.contrib.layers.xavier_initializer())
-        b1 = tf.get_variable('B1', shape=(64), initializer=tf.contrib.layers.xavier_initializer())
+        b1 = tf.get_variable('B1', shape=(32), initializer=tf.contrib.layers.xavier_initializer())
         b2 = tf.get_variable('B2', shape=(128), initializer=tf.contrib.layers.xavier_initializer())
         b3 = tf.get_variable('B3', shape=(3), initializer=tf.contrib.layers.xavier_initializer())
+
         weights = {
             'wc1': w0,
             'wc2': w1,
             'wd1': w2,
             'out': w3,
             }
+
         biases = {
             'bc1': b0,
             'bc2': b1,
             'bd1': b2,
             'out': b3,
             }
+        beta = 0.1
         # define place holder for both input and output
         x = tf.placeholder("float", [None, n_features, 1, 1])
         y = tf.placeholder("float", [None, 3])
         pred = self.conv_net(x, weights, biases)
         cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=pred, labels=y))
-        optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(cost)
+        regularizer = tf.nn.l2_loss(weights)
+        cost = tf.reduce_mean(cost + beta * regularizer)
+
+
+        optimizer = tf.train.AdamOptimizer(learning_rate=0.001).minimize(cost)
         # Here you check whether the index of the maximum value of the predicted image is equal to the actual labelled image. and both will be a column vector.
         correct_prediction = tf.equal(tf.argmax(pred, 1), tf.argmax(y, 1))
         # calculate accuracy across all the given images and average them out.
         accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-        #regularizers = tf.reduce_mean(
-        #    beta * (tf.nn.l2_loss(weights['wc1']) + tf.nn.l2_loss(weights['wc2']) + tf.nn.l2_loss(weights['wd1']) + tf.nn.l2_loss(weights['out'])))
-        # Initializing the variables
+                # Initializing the variables
         init = tf.global_variables_initializer()
         with tf.Session() as sess:
             sess.run(init)
@@ -114,18 +120,16 @@ class Cnn_Magic:
                 for batch in range(num_train_sample // self.batch_size):
                     batch_x = np.array(train_X[batch * self.batch_size:min((batch + 1) * self.batch_size, num_train_sample)])
                     batch_y = np.array(train_y[batch * self.batch_size:min((batch + 1) * self.batch_size, num_train_sample)])
+
                     # Run optimization op (backprop).
+                    # Calculate batch loss and accuracy
                     opt = sess.run(optimizer, feed_dict={x: batch_x,
                                                          y: batch_y})
-                    # Calculate batch loss and accuracy
-                    loss, acc = sess.run([cost,accuracy], feed_dict={x: batch_x,
+                    loss, acc = sess.run([cost, accuracy], feed_dict={x: batch_x,
                                                                       y: batch_y})
-                    #reg = sess.run(regularizers)
-                    #loss += reg
-                #print ("check point")
                 print("Iter " + str(i) + ", Loss= " + "{:.6f}".format(loss) + ", Training Accuracy= " + \
                       "{:.5f}".format(acc))
-                #print("Optimization Finished!")
+
                 # Calculate accuracy for all test samples
                 test_acc, valid_loss = sess.run([accuracy, cost], feed_dict={x: test_X, y: test_y})
                 train_loss.append(loss)
@@ -162,10 +166,15 @@ tokenize_data = tokenize_pad_sentences(train_data, word_index_dict)
 tokenize_data = one_hot_output(tokenize_data)
 #output_labels = tf.convert_to_tensor(convert_output_to_number(list(train_data['author'])))
 data = list(tokenize_data['indexed_text'])
-num_test_sample = 200
+num_test_sample = 50
 data_labels = np.array(list(tokenize_data['author']))
 N = len (train_data)
 n_features = len(data[1])
+EMBEDDING_SIZE = 10
+
+#embeded_data = tf.contrib.layers.embed_sequence(data, vocab_size=len(index_word_dict), embed_dim=EMBEDDING_SIZE)
+#print('words_embed={}'.format(embeded_data))
+#embeded_data.reshape(shape= (N,n_features,EMBEDDING_SIZE))
 ## converting data to 4D matrix which is the desired dimensions for tensor
 data = np.array(data)
 data = data.reshape(N, n_features, 1, 1)
@@ -173,12 +182,11 @@ indices = list(np.random.permutation(N))
 test_idx, training_idx = indices[:num_test_sample], indices[num_test_sample:-1]
 train_data, test_data = data[training_idx], data[test_idx]
 train_labels , test_labels = data_labels[training_idx], data_labels[test_idx]
-#embeds = tf.contrib.layers.embed_sequence(train_data, vocab_size=len (index_word_dict), embed_dim=EMBEDDING_SIZE)
-#print('words_embed={}'.format(embeds))
 
-training_iterations = 300
-learning_rate = 0.01
-batch_size = 16
+
+training_iterations = 1000
+learning_rate = 0.03
+batch_size = 64
 
 cnn_model = Cnn_Magic()
 loss, acc, valid_loss = cnn_model.experiment(train_X=train_data ,train_y=train_labels,test_X=test_data,test_y=test_labels, num_train_sample=len(train_labels),
