@@ -46,7 +46,7 @@ for sent in data:
     if len(sent)>max_len:
         max_len = len(sent)
 
-batch_size = 64
+batch_size = 128
 embedding_dimension = 64
 num_classes = 3
 hidden_layer_size = 32

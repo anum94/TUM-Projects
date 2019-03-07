@@ -6,6 +6,8 @@ PADWORD = 'PAD'
 n_inputs = 0
 n_classes = 3
 n_features = 0
+VOCAB_SIZE = 0
+
 
 def read_data (data_file):
     return pd.read_csv(data_file)
@@ -102,7 +104,7 @@ class Cnn_Magic:
         cost = tf.reduce_mean(cost + beta * regularizer)
 
 
-        optimizer = tf.train.AdamOptimizer(learning_rate=0.001).minimize(cost)
+        optimizer = tf.train.RMSPropOptimizer(learning_rate=0.005).minimize(cost)
         # Here you check whether the index of the maximum value of the predicted image is equal to the actual labelled image. and both will be a column vector.
         correct_prediction = tf.equal(tf.argmax(pred, 1), tf.argmax(y, 1))
         # calculate accuracy across all the given images and average them out.
@@ -132,8 +134,16 @@ class Cnn_Magic:
                 print("Iter " + str(i) + ", Loss= " + "{:.6f}".format(loss) + ", Training Accuracy= " + \
                       "{:.5f}".format(acc))
 
-                # Calculate accuracy for all test samples
-                test_acc, valid_loss = sess.run([accuracy, cost], feed_dict={x: test_X, y: test_y})
+
+            #Calculate accuracy for all test samples
+            test_batch_size = int(len(test_X)/5)
+            for batch_number in range(5):
+                test_batch_x = np.array(
+                    test_X[batch_number * test_batch_size:min((batch + 1) * test_batch_size, len(test_data))])
+                test_batch_y = np.array(
+                    test_y[batch_number * test_batch_size:min((batch + 1) * test_batch_size, len(test_data))])
+
+                test_acc, valid_loss = sess.run([accuracy, cost], feed_dict={x: test_batch_x, y: test_batch_y})
                 train_loss.append(loss)
                 test_loss.append(valid_loss)
                 train_accuracy.append(acc)
@@ -147,9 +157,26 @@ class Cnn_Magic:
         # Conv2D wrapper, with bias and relu activation
         x = tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME')
         x = tf.nn.bias_add(x, b)
-        return tf.nn.relu(x)
+        return tf.nn.sigmoid(x)
+
+
     def conv_net(self, x, weights, biases):
         # here we call the conv2d function we had defined above and pass the input image x, weights wc1 and bias bc1.
+
+        #compute embedding
+
+        '''
+        embeds = tf.contrib.layers.embed_sequence(x, vocab_size=VOCAB_SIZE, embed_dim=EMBEDDING_SIZE)
+
+        WINDOW_SIZE = EMBEDDING_SIZE
+        STRIDE = int(WINDOW_SIZE / 2)
+        conv = tf.contrib.layers.conv2d(embeds, 1, WINDOW_SIZE,
+                                        stride=STRIDE, padding='SAME')  # (?, 4, 1)
+        conv = tf.nn.relu(conv)  # (?, 4, 1)
+        words = tf.squeeze(conv, [2])  # (?, 4)
+        print (words.shape)
+        '''
+
         conv1 = self.conv2d(x, weights['wc1'], biases['bc1'])
         conv2 = self.conv2d(conv1, weights['wc2'], biases['bc2'])
         # Fully connected layer
@@ -168,16 +195,14 @@ tokenize_data = tokenize_pad_sentences(train_data, word_index_dict)
 tokenize_data = one_hot_output(tokenize_data)
 #output_labels = tf.convert_to_tensor(convert_output_to_number(list(train_data['author'])))
 data = list(tokenize_data['indexed_text'])
-num_test_sample = 50
+num_test_sample = 90
 data_labels = np.array(list(tokenize_data['author']))
 N = len (train_data)
+VOCAB_SIZE = len(data[1])
 n_features = len(data[1])
 EMBEDDING_SIZE = 10
 
-#embeded_data = tf.contrib.layers.embed_sequence(data, vocab_size=len(index_word_dict), embed_dim=EMBEDDING_SIZE)
-#print('words_embed={}'.format(embeded_data))
-#embeded_data.reshape(shape= (N,n_features,EMBEDDING_SIZE))
-## converting data to 4D matrix which is the desired dimensions for tensor
+
 data = np.array(data)
 data = data.reshape(N, n_features, 1, 1)
 indices = list(np.random.permutation(N))
@@ -188,7 +213,7 @@ train_labels , test_labels = data_labels[training_idx], data_labels[test_idx]
 
 training_iterations = 1000
 learning_rate = 0.03
-batch_size = 64
+batch_size = 128
 
 cnn_model = Cnn_Magic()
 loss, acc, valid_loss = cnn_model.experiment(train_X=train_data ,train_y=train_labels,test_X=test_data,test_y=test_labels, num_train_sample=len(train_labels),
