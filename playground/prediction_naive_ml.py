@@ -68,13 +68,13 @@ class Cnn_Magic:
 
         w0 = tf.get_variable('W0', shape=(3, 3, 1, 16), initializer=tf.contrib.layers.xavier_initializer())
         w1 = tf.get_variable('W1', shape=(3, 3, 16, 32), initializer=tf.contrib.layers.xavier_initializer())
-        w2 = tf.get_variable('W2', shape=(n_features * 32, 128),initializer=tf.contrib.layers.xavier_initializer())
-        w3 = tf.get_variable('W3', shape=(128, n_classes), initializer=tf.contrib.layers.xavier_initializer())
+        w2 = tf.get_variable('W2', shape=(n_features * 32, 64),initializer=tf.contrib.layers.xavier_initializer())
+        w3 = tf.get_variable('W3', shape=(64, n_classes), initializer=tf.contrib.layers.xavier_initializer())
 
 
         b0 = tf.get_variable('B0', shape=(16), initializer=tf.contrib.layers.xavier_initializer())
         b1 = tf.get_variable('B1', shape=(32), initializer=tf.contrib.layers.xavier_initializer())
-        b2 = tf.get_variable('B2', shape=(128), initializer=tf.contrib.layers.xavier_initializer())
+        b2 = tf.get_variable('B2', shape=(64), initializer=tf.contrib.layers.xavier_initializer())
         b3 = tf.get_variable('B3', shape=(3), initializer=tf.contrib.layers.xavier_initializer())
 
         weights = {
@@ -96,7 +96,9 @@ class Cnn_Magic:
         y = tf.placeholder("float", [None, 3])
         pred = self.conv_net(x, weights, biases)
         cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=pred, labels=y))
-        regularizer = tf.nn.l2_loss(weights)
+        regularizer  = tf.nn.l2_loss(weights['wc1'] + tf.nn.l2_loss(weights['wc2']) + tf.nn.l2_loss(weights['wd1'])
+                                     + tf.nn.l2_loss(weights['out']))
+
         cost = tf.reduce_mean(cost + beta * regularizer)
 
 
@@ -105,7 +107,7 @@ class Cnn_Magic:
         correct_prediction = tf.equal(tf.argmax(pred, 1), tf.argmax(y, 1))
         # calculate accuracy across all the given images and average them out.
         accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-                # Initializing the variables
+           # Initializing the variables
         init = tf.global_variables_initializer()
         with tf.Session() as sess:
             sess.run(init)
@@ -160,7 +162,7 @@ class Cnn_Magic:
         out = tf.add(tf.matmul(fc1, weights['out']), biases['out'])
         return out
 # Reading training data
-train_data = read_data("../data/train.csv")
+train_data = read_data("../data/train_sml.csv")
 index_word_dict, word_index_dict = create_word_dict(train_data)
 tokenize_data = tokenize_pad_sentences(train_data, word_index_dict)
 tokenize_data = one_hot_output(tokenize_data)
