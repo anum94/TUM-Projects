@@ -4,9 +4,6 @@ import pandas as pd
 import tensorflow as tf
 
 PADWORD = 'PAD'
-training_iterations = 200
-learning_rate = 0.04
-batch_size = 16
 n_inputs = 0
 n_classes = 3
 n_features = 0
@@ -81,8 +78,11 @@ class Cnn_Magic:
     def _init_(self):
         pass
 
-    def experiment(self, train_X, train_y, test_X, test_y, num_train_sample):
 
+    def experiment(self, train_X, train_y, test_X, test_y, num_train_sample, iterations,lr,bs):
+        self.n_iterations = iterations
+        self.learning_rate = lr
+        self.batch_size = bs
         beta = 0.1
         weights = {
             'wc1': tf.get_variable('W0', shape=(3, 3, 1, 16), initializer=tf.contrib.layers.xavier_initializer()),
@@ -108,7 +108,7 @@ class Cnn_Magic:
 
         cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=pred, labels=y))
 
-        optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
+        optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(cost)
         # Here you check whether the index of the maximum value of the predicted image is equal to the actual labelled image. and both will be a column vector.
         correct_prediction = tf.equal(tf.argmax(pred, 1), tf.argmax(y, 1))
 
@@ -130,10 +130,10 @@ class Cnn_Magic:
 
 
             summary_writer = tf.summary.FileWriter('./Output', sess.graph)
-            for i in range(training_iterations):
-                for batch in range(num_train_sample // batch_size):
-                    batch_x = np.array(train_X[batch * batch_size:min((batch + 1) * batch_size, num_train_sample)])
-                    batch_y = np.array(train_y[batch * batch_size:min((batch + 1) * batch_size, num_train_sample)])
+            for i in range(self.n_iterations):
+                for batch in range(num_train_sample // self.batch_size):
+                    batch_x = np.array(train_X[batch * self.batch_size:min((batch + 1) * self.batch_size, num_train_sample)])
+                    batch_y = np.array(train_y[batch * self.batch_size:min((batch + 1) * self.batch_size, num_train_sample)])
 
                     # Run optimization op (backprop).
 
@@ -148,10 +148,10 @@ class Cnn_Magic:
 
 
 
-                print ("check point")
-                print("Iter " + str(i) + ", Loss= " + \
-                      "{:.6f}".format(loss) + ", Training Accuracy= " + \
-                      "{:.5f}".format(acc))
+                #print ("check point")
+                #print("Iter " + str(i) + ", Loss= " + \
+                #      "{:.6f}".format(loss) + ", Training Accuracy= " + \
+                #      "{:.5f}".format(acc))
                 #print("Optimization Finished!")
 
                 # Calculate accuracy for all test samples
@@ -161,8 +161,9 @@ class Cnn_Magic:
                 test_loss.append(valid_loss)
                 train_accuracy.append(acc)
                 test_accuracy.append(test_acc)
-                print("Testing Accuracy:", "{:.5f}".format(test_acc))
+                #print("Testing Accuracy:", "{:.5f}".format(test_acc))
             summary_writer.close()
+        return loss, acc, valid_loss
 
     def conv2d(self, x, W, b, strides=1):
         # Conv2D wrapper, with bias and relu activation
@@ -188,7 +189,7 @@ class Cnn_Magic:
 
 
 # Reading training data
-train_data = read_data("../data/train.csv")
+train_data = read_data("../data/train_sml.csv")
 index_word_dict, word_index_dict = create_word_dict(train_data)
 tokenize_data = tokenize_pad_sentences(train_data, word_index_dict)
 tokenize_data = one_hot_output(tokenize_data)
@@ -196,7 +197,7 @@ tokenize_data = one_hot_output(tokenize_data)
 #output_labels = tf.convert_to_tensor(convert_output_to_number(list(train_data['author'])))
 data = list(tokenize_data['indexed_text'])
 
-num_test_sample = 200
+num_test_sample = 20
 data_labels = np.array(list(tokenize_data['author']))
 N = len (train_data)
 n_features = len(data[1])
@@ -214,6 +215,28 @@ train_labels , test_labels = data_labels[training_idx], data_labels[test_idx]
 #embeds = tf.contrib.layers.embed_sequence(train_data, vocab_size=len (index_word_dict), embed_dim=EMBEDDING_SIZE)
 #print('words_embed={}'.format(embeds))
 
+training_iterations = [200]
+learning_rate = [0.1, 0.2, 0.4,0.02,0.05,0.5, 0.001]
+batch_size = [2,4,8,16,32,64,128]
 
-cnn_model = Cnn_Magic()
-cnn_model.experiment(train_X=train_data ,train_y=train_labels,test_X=test_data,test_y=test_labels, num_train_sample=len(train_labels))
+
+best_validation_loss = 1000
+best_lr = 0
+best_batch_size = 0
+
+for iterations in training_iterations:
+    for lr in learning_rate:
+        for bs in batch_size:
+
+            cnn_model = Cnn_Magic()
+
+            loss, acc, valid_loss = cnn_model.experiment(train_X=train_data ,train_y=train_labels,test_X=test_data,test_y=test_labels, num_train_sample=len(train_labels),
+                                                         iterations=iterations,lr=lr,bs=bs)
+            print ("For learning rate " , lr, " and batch size " , bs ," , the validation/test accuracy is " , valid_loss,  ".")
+            if valid_loss < best_validation_loss:
+                best_validation_loss =  valid_loss
+                best_batch_size = bs
+                best_lr = lr
+
+print ("Best learning rate " , best_lr, " and best batch size " , best_batch_size ," , which gives validation/test accuracy of " , best_validation_loss,  ".")
+print ("Finish")
