@@ -371,13 +371,24 @@ def get_data(filename):
     return data_x, data_y
 
 
-## Main
-def train_and_test(train_data, test_data):
-    # 1. Reading and processing training data
-    train_data_x, train_data_y = get_data(train_data)
+'''
+    train_and_test function is used by CLI
+'''
 
-    #  2.Reading and processing test data
-    test_data_x, test_data_y = get_data(test_data)
+
+def train_and_test(data, test_ratio = 0.2):
+
+    print("!!! TRAIN AND TESTING USING CNN MODEL !!!")
+    # 1. Reading and processing training data
+    data_x, data_y = get_data(data)
+
+    #  2. Breaking data into test and train test
+    N = len(data_x)
+    indices = list(np.random.permutation(N))
+    num_test_sample = int(N * test_ratio)
+    test_idx, training_idx = indices[:num_test_sample], indices[num_test_sample:-1]
+    train_data_x, test_data_x = data_x[training_idx], data_x[test_idx]
+    train_data_y, test_data_y = data_y[training_idx], data_y[test_idx]
 
     # 3. Create CNN class object
     cnn_model = Cnn_Magic()
@@ -393,3 +404,5 @@ def train_and_test(train_data, test_data):
     print("For learning rate ", learning_rate, " and batch size ", batch_size, " , the Test accuracy is ", test_acc,
           ".")
     print("Finish")
+
+

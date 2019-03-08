@@ -105,8 +105,11 @@ functions in outer scope called by command line interface
 def testing(path_to_model, path_to_test_data):
     print("!!! PREDICTION BY FREQUENCY !!!")
     pred_by_freq = PredictionByFreq()
+
+    path_to_model = path_to_model + "/" + "pred_by_freq.pkl"
     t, f = pred_by_freq.testing(path_to_model, path_to_test_data)
     print("accuracy of model is %s " % (str((t/(t+f))*100)))
+    print("PREDICTION BY FREQUENCY IS COMPLETED")
 
 
 def predict_sentence(path_to_model, sentence):
@@ -121,7 +124,7 @@ def predict_sentence(path_to_model, sentence):
 
 
 def create_model(path_to_train_data, path_to_model):
+    path_to_model = path_to_model + "/" + "pred_by_freq.pkl"
     pred_by_freq = PredictionByFreq()
     pred_by_freq.generate_model(path_to_train_data, path_to_model)
-    pass
 
