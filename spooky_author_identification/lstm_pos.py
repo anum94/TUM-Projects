@@ -25,35 +25,30 @@ class PredictionByLSTM:
         return x, y, seqlens, x2
 
     def generate_data(self, raw_data):
-        default_st = nltk.sent_tokenize
-        default_wt = nltk.word_tokenize
 
-        EAP = str()
-        MWS = str()
-        HPL = str()
+        eap_sentences = []
+        mws_sentences = []
+        hpl_sentences = []
         train_text = pd.read_csv(raw_data)
         for _, row in train_text.iterrows():
             if row["author"] == "EAP":
-                EAP += " " + str(row["text"])
+                eap_sentences.append(str(row["text"]))
             if row["author"] == "MWS":
-                MWS += " " + str(row["text"])
+                mws_sentences.append(str(row["text"]))
             if row["author"] == "HPL":
-                HPL += " " + str(row["text"])
+                hpl_sentences.append(str(row["text"]))
 
-        eap_sentences = default_st(text=EAP)
-        eap_tuples = [nltk.pos_tag(default_wt(sentence)) for sentence in eap_sentences]
+        eap_tuples = [nltk.pos_tag(nltk.word_tokenize(sentence)) for sentence in eap_sentences]
         eap_words = [[word[0] for word in sentence] for sentence in eap_tuples]
         eap_tags = [[word[1] for word in sentence] for sentence in eap_tuples]
         eap_len = len(eap_sentences)
 
-        mws_sentences = default_st(MWS)
-        mws_tuples = [nltk.pos_tag(default_wt(sentence)) for sentence in mws_sentences]
+        mws_tuples = [nltk.pos_tag(nltk.word_tokenize(sentence)) for sentence in mws_sentences]
         mws_words = [[word[0] for word in sentence] for sentence in mws_tuples]
         mws_tags = [[word[1] for word in sentence] for sentence in mws_tuples]
         mws_len = len(mws_sentences)
 
-        hpl_sentences = default_st(HPL)
-        hpl_tuples = [nltk.pos_tag(default_wt(sentence)) for sentence in hpl_sentences]
+        hpl_tuples = [nltk.pos_tag(nltk.word_tokenize(sentence)) for sentence in hpl_sentences]
         hpl_words = [[word[0] for word in sentence] for sentence in hpl_tuples]
         hpl_tags = [[word[1] for word in sentence] for sentence in hpl_tuples]
         hpl_len = len(hpl_sentences)
@@ -62,10 +57,11 @@ class PredictionByLSTM:
         data_tags = np.array(eap_tags + mws_tags + hpl_tags)
         data_len = len(data)
 
-        max_len = 876
-        # for sent in data:
-        #     if len(sent) > max_len:
-        #         max_len = len(sent)
+        max_len = 0
+        for sent in data:
+            if len(sent) > max_len:
+                max_len = len(sent)
+        print("max len: ", max_len)
 
         seqlens = []
 
@@ -76,13 +72,12 @@ class PredictionByLSTM:
                 pads = ['PAD'] * (max_len - len(data[sentence_id]))
                 data[sentence_id] = data[sentence_id] + pads
 
-        ### tags ###
+        # tags
         for sentence_id in range(data_len):
             if len(data_tags[sentence_id]) < max_len:
                 pads = ['PAD'] * (max_len - len(data_tags[sentence_id]))
                 data_tags[sentence_id] = data_tags[sentence_id] + pads
 
-        ####
         labels = [2] * eap_len + [1] * mws_len + [0] * hpl_len
 
         for i in range(len(labels)):
@@ -98,7 +93,7 @@ class PredictionByLSTM:
                     self.word2index_map[word] = index
                     index += 1
 
-        #### tags ####
+        # tags
         index = 0
         for sent in data_tags:
             for tag in sent:
@@ -108,17 +103,15 @@ class PredictionByLSTM:
 
         return data, labels, seqlens, data_tags, max_len
 
-    def training(self, model_path, training_data):
+    def training(self, training_data):
         epochs = 10
 
         data, labels, seqlens, data_tags, max_len = self.generate_data(training_data)
         data_len = len(data)
 
-        ###
-        train_size = int(data_len)  # has to be integer for slicing array
+        train_size = int(data_len / 2)  # has to be integer for slicing array
         data_indices = list(range(len(data)))
         np.random.shuffle(data_indices)
-
         data = np.array(data)[data_indices]
         labels = np.array(labels)[data_indices]
         seqlens = np.array(seqlens)[data_indices]
@@ -126,9 +119,14 @@ class PredictionByLSTM:
         train_y = labels[:train_size]
         train_seqlens = seqlens[:train_size]
 
+        test_x = data[train_size:]
+        test_y = labels[train_size:]
+        test_seqlens = seqlens[train_size:]
+
         #### tags ###
         data_tags = np.array(data_tags)[data_indices]
         train_x_tags = data_tags[:train_size]
+        test_x_tags = data_tags[train_size:]
 
         final_output, _labels, _inputs, _seqlens, _inputs_tags, accuracy = self.tf_scopes(max_len)
 
@@ -152,7 +150,19 @@ class PredictionByLSTM:
                                                         _seqlens: seqlen_batch, _inputs_tags: x2_batch})
                     print("Accuracy at %d: %.5f" % (step, acc))
 
-            tf.train.Saver().save(sess, model_path, write_meta_graph=True)
+            mean_acc = 0
+            for test_batch in range(5):
+                x_test, y_test, seqlen_test, x2_test = self.__get_sentence_batch(self.batch_size,
+                                                                                 test_x, test_y,
+                                                                                 test_seqlens, test_x_tags)
+                batch_pred, batch_acc = sess.run([tf.argmax(final_output, 1), accuracy],
+                                                 feed_dict={_inputs: x_test,
+                                                            _labels: y_test,
+                                                            _seqlens: seqlen_test, _inputs_tags: x2_test})
+                print("Test batch accuracy %d: %.5f" % (test_batch, batch_acc))
+                mean_acc = mean_acc + batch_acc
+
+            print("Mean test accuracy: %.5f" % (mean_acc / 5))
 
     def tf_scopes(self, max_len):
         embedding_dimension = 64
@@ -190,7 +200,7 @@ class PredictionByLSTM:
                                                 sequence_length=_seqlens,
                                                 dtype=tf.float32)
 
-        #### tags ####
+        # tags
         with tf.name_scope("embeddings_tags"):
             embeddings_tags = tf.Variable(
                 tf.random_uniform([vocabulary_size_tags,
@@ -226,54 +236,7 @@ class PredictionByLSTM:
 
         return final_output, _labels, _inputs, _seqlens, _inputs_tags, accuracy
 
-    def testing(self, model_path, testing_data):
-        data, labels, seqlens, data_tags, max_len = self.generate_data(testing_data)
 
-        final_output, _labels, _inputs, _seqlens, _inputs_tags, accuracy = self.tf_scopes(max_len)
-
-        train_size = int(len(data))
-
-        test_x = data[:train_size]
-        test_y = labels[:train_size]
-        test_seqlens = seqlens[:train_size]
-        test_x_tags = data_tags[:train_size]
-        test_y = labels[:train_size]
-        test_seqlens = seqlens[:train_size]
-
-        with tf.Session() as sess:
-            saver = tf.train.import_meta_graph('model/model.ckpt.meta')
-            saver.restore(sess, tf.train.latest_checkpoint('model/'))
-
-            graph = tf.get_default_graph()
-            final_output, _labels, _inputs, _seqlens, _inputs_tags, accuracy = self.tf_scopes(max_len)
-
-            w1 = graph.get_tensor_by_name("w1:0")
-            w2 = graph.get_tensor_by_name("w2:0")
-            feed_dict = {w1: 13.0, w2: 17.0}
-
-            # Now, access the op that you want to run.
-            op_to_restore = graph.get_tensor_by_name("op_to_restore:0")
-
-            print
-            sess.run(op_to_restore, feed_dict)
-            # tf.train.Saver().restore(sess, model_path)
-
-            mean_acc = 0
-            for test_batch in range(5):
-                x_test, y_test, seqlen_test, x2_test = self.__get_sentence_batch(self.batch_size,
-                                                                                 test_x, test_y,
-                                                                                 test_seqlens, test_x_tags)
-                batch_pred, batch_acc = sess.run([tf.argmax(final_output, 1), accuracy],
-                                                 feed_dict={_inputs: x_test,
-                                                            _labels: y_test,
-                                                            _seqlens: seqlen_test, _inputs_tags: x2_test})
-                print("Test batch accuracy %d: %.5f" % (test_batch, batch_acc))
-                mean_acc = mean_acc + batch_acc
-
-            print("Mean test accuracy: %.5f" % (mean_acc / 5))
-
-
-predByLSTM = PredictionByLSTM()
-# predByLSTM.training("model/model.ckpt", "../data/train_test_removed.csv")
-predByLSTM.testing("model/model.ckpt", "../data/test_labeled.csv")
-
+def train_and_test(data):
+    predByLSTM = PredictionByLSTM()
+    predByLSTM.training(data)

@@ -12,12 +12,11 @@ learning_rate = 0.01
 batch_size = 128
 
 # because we have seprarted the testing and training data therefore we need an upper bound that would
-#for both data files
+# for both data files
 Max_sentence_length = 900
 
 
-def read_data (data_file):
-
+def read_data(data_file):
     '''
     Reads the csv format data file using a pandas framework
     :param data_file: Path to the input file
@@ -25,6 +24,7 @@ def read_data (data_file):
     '''
 
     return pd.read_csv(data_file)
+
 
 def create_word_dict(texts):
     '''
@@ -50,7 +50,7 @@ def create_word_dict(texts):
         for word in sentence_tok:
             word_set.add(word)
 
-    #Create dictionaries
+    # Create dictionaries
     word_index_dict = dict()
     index_word_dict = dict()
     for word in word_set:
@@ -59,6 +59,7 @@ def create_word_dict(texts):
         counter += 1
 
     return index_word_dict, word_index_dict
+
 
 def tokenize_pad_sentences(data, word_index_dict):
     '''
@@ -89,16 +90,17 @@ def tokenize_pad_sentences(data, word_index_dict):
             max_sentence_length = len(word_indexes)
         df = df.append({'author': row["author"], 'indexed_text': word_indexes}, ignore_index=True)
 
-    #pad the sentences
+    # pad the sentences
 
     for i, row in enumerate(df["indexed_text"]):
         if len(row) < Max_sentence_length:
             pads = [0] * (Max_sentence_length - len(row))
             df["indexed_text"][i] = row + pads
-    #Update the Global Variable
+    # Update the Global Variable
     N_FEATURES = Max_sentence_length
 
     return df
+
 
 def one_hot_output(data):
     '''
@@ -117,13 +119,14 @@ def one_hot_output(data):
         data["author"][i] = one_hot_encoding
     return data
 
+
 def convert_output_to_number(out):
     '''
 
     :param out: A list of output labels in string. (The dataset we are using has labels in string)
     :return: list of labels in a numberic form where 0 -> EAP, 1 -> HPL and 2 -> MWS
     '''
-    for index,author in enumerate(out):
+    for index, author in enumerate(out):
         if author == "EAP":
             out[index] = 0
         elif author == "HPL":
@@ -131,8 +134,10 @@ def convert_output_to_number(out):
         else:
             out[index] = 2
     return out
+
+
 class Cnn_Magic:
-    #Class that deals with the Convoution Neural
+    # Class that deals with the Convoution Neural
     def _init_(self):
         '''
 
@@ -140,7 +145,7 @@ class Cnn_Magic:
         '''
         pass
 
-    def experiment(self, train_X, train_y, test_X, test_y, num_train_sample, iterations,lr,bs):
+    def experiment(self, train_X, train_y, test_X, test_y, num_train_sample, iterations, lr, bs):
         '''
 
         The computational graph for tensor is define in this function. and then later computed
@@ -162,15 +167,15 @@ class Cnn_Magic:
         self.learning_rate = lr
         self.batch_size = bs
 
-
-        #initialize the weight and bias tensor for the Filter (kernal)
+        # initialize the weight and bias tensor for the Filter (kernal)
 
         # 16 filters of size 3 by 3 by 1
         w0 = tf.get_variable('W0', shape=(3, 3, 1, 16), initializer=tf.contrib.layers.xavier_initializer())
         # 32 filters of size 3 by 3 by 16
         w1 = tf.get_variable('W1', shape=(3, 3, 16, 32), initializer=tf.contrib.layers.xavier_initializer())
         # weights for the fully connected layer where the output from the previous CNN later is flattened
-        w2 = tf.get_variable('W2', shape=(Max_sentence_length * 32, 64),initializer=tf.contrib.layers.xavier_initializer())
+        w2 = tf.get_variable('W2', shape=(Max_sentence_length * 32, 64),
+                             initializer=tf.contrib.layers.xavier_initializer())
         # weights for the output layer
         w3 = tf.get_variable('W3', shape=(64, N_CLASSES), initializer=tf.contrib.layers.xavier_initializer())
 
@@ -185,14 +190,14 @@ class Cnn_Magic:
             'wc2': w1,
             'wd1': w2,
             'out': w3,
-            }
+        }
 
         biases = {
             'bc1': b0,
             'bc2': b1,
             'bd1': b2,
             'out': b3,
-            }
+        }
 
         # init Regularization constant
         beta = 0.1
@@ -200,7 +205,6 @@ class Cnn_Magic:
         # define place holder for both training data and output labels
         x = tf.placeholder("float", [None, Max_sentence_length, 1, 1])
         y = tf.placeholder("float", [None, 3])
-
 
         # Forward pass of CNN
         pred = self.conv_net(x, weights, biases)
@@ -210,7 +214,7 @@ class Cnn_Magic:
 
         # include regularization to avoid overfitting
         regularizer = tf.nn.l2_loss(weights['wc1'] + tf.nn.l2_loss(weights['wc2']) + tf.nn.l2_loss(weights['wd1'])
-                                     + tf.nn.l2_loss(weights['out']))
+                                    + tf.nn.l2_loss(weights['out']))
 
         cost = tf.reduce_mean(cost + beta * regularizer)
 
@@ -231,7 +235,7 @@ class Cnn_Magic:
         # Initializing the weights and biases variables using Xavier initialization
         init = tf.global_variables_initializer()
 
-        #Run the session
+        # Run the session
         with tf.Session() as sess:
             sess.run(init)
 
@@ -241,19 +245,20 @@ class Cnn_Magic:
             loss = 0
             acc = 0
 
-
             for i in range(self.n_iterations):
 
                 for batch in range(num_train_sample // self.batch_size):
-                    batch_x = np.array(train_X[batch * self.batch_size:min((batch + 1) * self.batch_size, num_train_sample)])
-                    batch_y = np.array(train_y[batch * self.batch_size:min((batch + 1) * self.batch_size, num_train_sample)])
+                    batch_x = np.array(
+                        train_X[batch * self.batch_size:min((batch + 1) * self.batch_size, num_train_sample)])
+                    batch_y = np.array(
+                        train_y[batch * self.batch_size:min((batch + 1) * self.batch_size, num_train_sample)])
 
                     # Run optimization tensor which perform Backpropagation and updates the weights.
-                    opt = sess.run(optimizer, feed_dict={x: batch_x,y: batch_y})
+                    opt = sess.run(optimizer, feed_dict={x: batch_x, y: batch_y})
                     # Calculate batch loss and accuracy
                     loss, acc = sess.run([cost, accuracy], feed_dict={x: batch_x, y: batch_y})
 
-                    #Saving the loss and accuracy which would be later used for plotting
+                    # Saving the loss and accuracy which would be later used for plotting
                     train_loss.append(loss)
                     train_accuracy.append(acc)
 
@@ -261,13 +266,11 @@ class Cnn_Magic:
                 print("Epoch " + str(i) + ", Loss= " + "{:.6f}".format(loss) + ", Training Accuracy= " + \
                       "{:.5f}".format(acc))
 
-
-            #Calculate test accuracy using 5 batches from testing data
+            # Calculate test accuracy using 5 batches from testing data
             num_test_batch = 5
-            test_batch_size = int(len(test_X)/num_test_batch)
+            test_batch_size = int(len(test_X) / num_test_batch)
 
             for batch_number in range(num_test_batch):
-
                 test_batch_x = np.array(
                     test_X[batch_number * test_batch_size:min((batch_number + 1) * test_batch_size, len(test_X))])
                 test_batch_y = np.array(
@@ -278,12 +281,12 @@ class Cnn_Magic:
                 test_accuracy.append(test_acc)
                 print("Testing Accuracy:", "{:.5f}".format(test_acc))
 
-        #Plotting training Accuracy and Training loss
+        # Plotting training Accuracy and Training loss
         x_axis = [i for i in range(len(train_accuracy))]
         plt.figure(1)
         plt.subplot(211)
         plt.plot(x_axis, train_accuracy, 'ro', )
-        plt.axis([0, len(x_axis) , 0, 1])
+        plt.axis([0, len(x_axis), 0, 1])
         plt.xlabel('Number of Iterations.')
         plt.ylabel('Training Accuracy')
 
@@ -295,7 +298,7 @@ class Cnn_Magic:
         plt.show()
 
         # plt.plot(x_axis, train_loss, 'bo')
-        avg_train_loss = sum(train_loss)/len(train_loss)
+        avg_train_loss = sum(train_loss) / len(train_loss)
         avg_train_acc = sum(train_accuracy) / len(train_accuracy)
         avg_test_acc = sum(test_accuracy) / len(test_accuracy)
 
@@ -311,11 +314,9 @@ class Cnn_Magic:
         :return: output of the activation of the cnn layer output
         '''
 
-
         x = tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME')
         x = tf.nn.bias_add(x, b)
         return tf.nn.relu(x)
-
 
     def conv_net(self, x, weights, biases):
 
@@ -327,7 +328,7 @@ class Cnn_Magic:
         :return:
         '''
         # here we call the conv2d function we had defined above and pass the input sentences, weights
-        #wc1 and bias bc1.
+        # wc1 and bias bc1.
 
         conv1 = self.conv2d(x, weights['wc1'], biases['bc1'])
 
@@ -369,22 +370,26 @@ def get_data(filename):
     data_x = data_x.reshape(data_x.shape[0], Max_sentence_length, 1, 1)
     return data_x, data_y
 
+
 ## Main
+def train_and_test(train_data, test_data):
+    # 1. Reading and processing training data
+    train_data_x, train_data_y = get_data(train_data)
 
-# 1. Reading and processing training data
-train_data_x, train_data_y = get_data("../data/training_data.csv")
+    #  2.Reading and processing test data
+    test_data_x, test_data_y = get_data(test_data)
 
-#  2.Reading and processing test data
-test_data_x, test_data_y = get_data("../data/test_data.csv")
+    # 3. Create CNN class object
+    cnn_model = Cnn_Magic()
 
-# 3. Create CNN class object
-cnn_model = Cnn_Magic()
+    # 4. Create and run model
+    train_loss, train_acc, test_acc = cnn_model.experiment(train_X=train_data_x, train_y=train_data_y,
+                                                           test_X=test_data_x, test_y=test_data_y,
+                                                           num_train_sample=len(train_data_x),
+                                                           iterations=training_iterations, lr=learning_rate,
+                                                           bs=batch_size)
 
-# 4. Create and run model
-train_loss, train_acc, test_acc = cnn_model.experiment(train_X=train_data_x ,train_y=train_data_y,
-                                    test_X=test_data_x,test_y=test_data_y, num_train_sample=len(train_data_x),
-                                    iterations=training_iterations,lr=learning_rate,bs=batch_size)
-
-# 5. Print final results
-print ("For learning rate " , learning_rate, " and batch size " , batch_size ," , the Test accuracy is " , test_acc,  ".")
-print ("Finish")
+    # 5. Print final results
+    print("For learning rate ", learning_rate, " and batch size ", batch_size, " , the Test accuracy is ", test_acc,
+          ".")
+    print("Finish")
