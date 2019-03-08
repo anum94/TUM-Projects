@@ -4,7 +4,7 @@
 
 KAMIL ORUJZADE, 03693533
 
-ANUM , 03696046
+ANUM AFZAL, 03696046
 
 ## Description of the Problem and Approaches
 
