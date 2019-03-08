@@ -104,7 +104,7 @@ class PredictionByLSTM:
         return data, labels, seqlens, data_tags, max_len
 
     def training(self, training_data):
-        epochs = 10
+        epochs = 1500
 
         data, labels, seqlens, data_tags, max_len = self.generate_data(training_data)
         data_len = len(data)

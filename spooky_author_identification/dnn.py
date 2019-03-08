@@ -1,29 +1,27 @@
 import numpy as np
 import pandas as pd
 import nltk as nl
-from numpy import array
 import tensorflow as tf
 import tflearn
 from sklearn.preprocessing import LabelEncoder
 from sklearn.preprocessing import OneHotEncoder
+
 stemmer = nl.stem.lancaster.LancasterStemmer()
 
-TRAIN_DATA_PATH = '../data/train_data.csv'
-TEST_DATA_PATH = '../data/test_data.csv'
-VOCAB_PATH = 'DNN_model/vocab.csv'
 
 def read_file(file_path):
     return pd.read_csv(file_path)
 
+
 def preprocess_data(train):
-    '''
+    """
     Process the train data to use a one hot representation for input features
 
     :param train: Training data
     :return: Process data, Vocabulary list
-    '''
+    """
 
-    #tokenize the words
+    # tokenize the words
     train['tokens'] = [nl.word_tokenize(sentences) for sentences in train.text]
 
     # Create a voacbulary
@@ -31,12 +29,12 @@ def preprocess_data(train):
     for item in train.tokens:
         words.extend(item)
 
-    #stem the words and removing the duplicates
+    # stem the words and removing the duplicates
     words = [stemmer.stem(word) for word in words]
     words = set(words)
 
-    ## Represent each sentence in form of a one vector of size v= Vocabulary size.
-    ## and set the index to one for those words that exist in the sentence
+    # Represent each sentence in form of a one vector of size v= Vocabulary size.
+    # and set the index to one for those words that exist in the sentence
     training = []
     for index, item in train.iterrows():
         onehot = []
@@ -48,6 +46,7 @@ def preprocess_data(train):
 
     training_new = np.array(training)
     return training_new, words
+
 
 def one_hot_label(y):
     # integer encode
@@ -61,10 +60,10 @@ def one_hot_label(y):
 
     return onehot_encoded
 
-def calculate_model_accuracy(result):
 
-    #Read the test labels
-    test = pd.read_csv(TEST_DATA_PATH)
+def calculate_model_accuracy(result, testing_data):
+    # Read the test labels
+    test = pd.read_csv(testing_data)
     test.head()
     test['tokens'] = [nl.word_tokenize(sentences) for sentences in test.text]
 
@@ -84,9 +83,7 @@ def calculate_model_accuracy(result):
             author = "MWS"
         final_results[id] = author
 
-
     for index, row in test.iterrows():
-
         row = list(row)
         id = row.pop(0)
         author = row.pop(1)
@@ -100,8 +97,9 @@ def calculate_model_accuracy(result):
         total_test_samples += 1
         if real_result[id] == author:
             correct_samples += 1
-    accuracy = correct_samples/total_test_samples
+    accuracy = correct_samples / total_test_samples
     return accuracy
+
 
 def get_test_data(filepath, words):
     test = pd.read_csv(filepath)
@@ -121,20 +119,19 @@ def get_test_data(filepath, words):
     testing = list(np.array(testing))
     return testing, test
 
-def prediction_using_saved_model(model_path,TEST_DATA_PATH):
-    num_features = 11679
+
+def prediction_using_saved_model(model_path, testing_data, vocab_path):
     num_classes = 3
 
-
     # load the vocab file
-
-    pd_word = pd.read_csv(VOCAB_PATH)
+    pd_word = pd.read_csv(vocab_path)
     loaded_vocab = list(pd_word['0'])
+    num_features = len(loaded_vocab)
 
     # Loading test data
-    test_data, test = get_test_data(TEST_DATA_PATH, loaded_vocab)
+    test_data, test = get_test_data(testing_data, loaded_vocab)
 
-    #design the same old network
+    # design the same old network
     tf.reset_default_graph()
     net = tflearn.input_data(shape=[None, num_features])
     net = tflearn.fully_connected(net, 8)
@@ -142,7 +139,7 @@ def prediction_using_saved_model(model_path,TEST_DATA_PATH):
     net = tflearn.fully_connected(net, num_classes, activation='softmax')
     net = tflearn.regression(net)
     model = tflearn.DNN(net)
-    model.load('model.tflearn')
+    model.load(model_path)
     predicted = model.predict(X=test_data)
 
     result_val = round(pd.DataFrame(predicted), 6)
@@ -157,65 +154,68 @@ def prediction_using_saved_model(model_path,TEST_DATA_PATH):
 
     result.head()
 
-    acc = calculate_model_accuracy(result)
+    acc = calculate_model_accuracy(result, testing_data)
     print("Accuracy: ", acc)
 
 
-# 1. Read the training data
-training_data = read_file(TRAIN_DATA_PATH)
-training_data.head()
+def training(training_data, testing_data, vocab_path, model_path):
+    # 1. Read the training data
+    training_data = read_file(training_data)
+    training_data.head()
 
-# 2. Preprocess the data and break into features and labels
-processed_training_data, words = preprocess_data(training_data)
-train_x = list(processed_training_data[:,0])
-train_y = one_hot_label(processed_training_data[:,1])
+    # 2. Preprocess the data and break into features and labels
+    processed_training_data, words = preprocess_data(training_data)
+    train_x = list(processed_training_data[:, 0])
+    train_y = one_hot_label(processed_training_data[:, 1])
 
-pd_word = pd.DataFrame(words)
-pd_word.to_csv(VOCAB_PATH)
+    pd_word = pd.DataFrame(list(words))
+    pd_word.to_csv(vocab_path)
 
-# 3. Build a deep neural network with 2 linear fully connected, one fully connected layer with
-## softmax activation, followed by a regression output layer
-num_features = len(train_x[0])
-num_classes = len(train_y[0])
-print (num_features)
-print (num_classes)
-tf.reset_default_graph()
-net = tflearn.input_data(shape=[None, num_features ])
-net = tflearn.fully_connected(net, 8)
-net = tflearn.fully_connected(net, 8)
-net = tflearn.fully_connected(net, num_classes, activation='softmax')
-net = tflearn.regression(net)
+    # 3. Build a deep neural network with 2 linear fully connected, one fully connected layer with
+    # softmax activation, followed by a regression output layer
+    num_features = len(train_x[0])
+    num_classes = len(train_y[0])
+    print(num_features)
+    print(num_classes)
+    tf.reset_default_graph()
+    net = tflearn.input_data(shape=[None, num_features])
+    net = tflearn.fully_connected(net, 8)
+    net = tflearn.fully_connected(net, 8)
+    net = tflearn.fully_connected(net, num_classes, activation='softmax')
+    net = tflearn.regression(net)
+
+    # 4. Define model and setup for tensorboard
+    model = tflearn.DNN(net, tensorboard_dir='tflearn_logs')
+
+    # 5. Train and save the model
+    model.fit(train_x, train_y, n_epoch=10, batch_size=8, show_metric=True)
+    model.save(model_path)
+
+    # 6. Loading test data
+    test_data, test = get_test_data(testing_data, words)
+
+    # 7. Do Prediction
+    predicted = model.predict(X=test_data)
+
+    result_val = round(pd.DataFrame(predicted), 6)
+    result_val.columns = ["EAP", "HPL", "MWS"]
+
+    result = pd.DataFrame(columns=['id'])
+    result['id'] = test['id']
+
+    result['EAP'] = result_val['EAP']
+    result['HPL'] = result_val['HPL']
+    result['MWS'] = result_val['MWS']
+
+    result.head()
+
+    acc = calculate_model_accuracy(result, testing_data)
+    print("\n-----------------------------------------------------------\n")
+    print("Accuracy: ", acc)
 
 
-# 4. Define model and setup for tensorboard
-model = tflearn.DNN(net, tensorboard_dir='tflearn_logs')
+def testing(model_path, vocab_path, testing_data):
+    print("!!! PREDICTION BY DEEP NEURAL NETWORK USING TENSORFLOW !!!")
+    print("tflearn is used for training and optimizing the model.")
 
-# 5. Train and save the model
-model.fit(train_x, train_y, n_epoch=10, batch_size=8, show_metric=True)
-model.save('DNN_model/model.tflearn')
-
-# 6. Loading test data
-test_data, test = get_test_data(TEST_DATA_PATH)
-
-#7. Do Prediction
-predicted = model.predict(X=test_data)
-
-
-
-result_val = round(pd.DataFrame(predicted),6)
-result_val.columns = ["EAP","HPL","MWS"]
-
-result = pd.DataFrame(columns=['id'])
-result['id'] = test['id']
-
-result['EAP'] = result_val['EAP']
-result['HPL'] = result_val['HPL']
-result['MWS'] = result_val['MWS']
-
-
-result.head()
-
-acc = calculate_model_accuracy(result)
-print ("Accuracy: ", acc)
-
-#prediction_using_saved_model('DNN_model/model.tflearn',TEST_DATA_PATH)
+    prediction_using_saved_model(model_path, testing_data, vocab_path)

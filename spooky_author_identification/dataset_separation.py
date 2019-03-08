@@ -7,8 +7,7 @@ random indices.
 '''
 
 
-def separate_data(test_ratio=0.2, data_path="data/train.csv",
-                  train_path="data/training_data.csv", test_path="data/test_data.csv"):
+def separate_data(test_ratio, data_path, train_path, test_path):
     # Reading the input data file.
     data = pd.read_csv(data_path)
     header = list(data.columns.values)
