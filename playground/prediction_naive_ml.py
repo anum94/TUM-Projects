@@ -2,15 +2,17 @@ import nltk
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+import matplotlib.pyplot as plt
 
 PADWORD = 'PAD'
 N_CLASSES = 3
-N_FEATURES = 0
-training_iterations = 1000
+training_iterations = 2
 learning_rate = 0.01
 batch_size = 128
-test_ratio = 0.2
-N = 0
+
+# because we have seprarted the testing and training data therefore we need an upper bound that would
+#for both data files
+Max_sentence_length = 900
 
 
 def read_data (data_file):
@@ -87,12 +89,13 @@ def tokenize_pad_sentences(data, word_index_dict):
         df = df.append({'author': row["author"], 'indexed_text': word_indexes}, ignore_index=True)
 
     #pad the sentences
+
     for i, row in enumerate(df["indexed_text"]):
-        if len(row) < max_sentence_length:
-            pads = [0] * (max_sentence_length - len(row))
+        if len(row) < Max_sentence_length:
+            pads = [0] * (Max_sentence_length - len(row))
             df["indexed_text"][i] = row + pads
     #Update the Global Variable
-    N_FEATURES = max_sentence_length
+    N_FEATURES = Max_sentence_length
 
     return df
 
@@ -166,7 +169,7 @@ class Cnn_Magic:
         # 32 filters of size 3 by 3 by 16
         w1 = tf.get_variable('W1', shape=(3, 3, 16, 32), initializer=tf.contrib.layers.xavier_initializer())
         # weights for the fully connected layer where the output from the previous CNN later is flattened
-        w2 = tf.get_variable('W2', shape=(N_FEATURES * 32, 64),initializer=tf.contrib.layers.xavier_initializer())
+        w2 = tf.get_variable('W2', shape=(Max_sentence_length * 32, 64),initializer=tf.contrib.layers.xavier_initializer())
         # weights for the output layer
         w3 = tf.get_variable('W3', shape=(64, N_CLASSES), initializer=tf.contrib.layers.xavier_initializer())
 
@@ -194,7 +197,7 @@ class Cnn_Magic:
         beta = 0.1
 
         # define place holder for both training data and output labels
-        x = tf.placeholder("float", [None, N_FEATURES, 1, 1])
+        x = tf.placeholder("float", [None, Max_sentence_length, 1, 1])
         y = tf.placeholder("float", [None, 3])
 
 
@@ -265,15 +268,32 @@ class Cnn_Magic:
             for batch_number in range(num_test_batch):
 
                 test_batch_x = np.array(
-                    test_X[batch_number * test_batch_size:min((batch_number + 1) * test_batch_size, len(test_data))])
+                    test_X[batch_number * test_batch_size:min((batch_number + 1) * test_batch_size, len(test_X))])
                 test_batch_y = np.array(
-                    test_y[batch_number * test_batch_size:min((batch_number + 1) * test_batch_size, len(test_data))])
+                    test_y[batch_number * test_batch_size:min((batch_number + 1) * test_batch_size, len(test_y))])
 
                 test_acc, test_loss = sess.run([accuracy, cost], feed_dict={x: test_batch_x, y: test_batch_y})
 
                 test_accuracy.append(test_acc)
                 print("Testing Accuracy:", "{:.5f}".format(test_acc))
 
+        #Plotting training Accuracy and Training loss
+        x_axis = [i for i in range(len(train_accuracy))]
+        plt.figure(1)
+        plt.subplot(211)
+        plt.plot(x_axis, train_accuracy, 'ro', )
+        plt.axis([0, len(x_axis) , 0, 1])
+        plt.xlabel('Number of Iterations.')
+        plt.ylabel('Training Accuracy')
+
+        plt.subplot(212)
+        plt.plot(x_axis, train_loss, 'bo', )
+        plt.axis([0, len(x_axis), 0, max(train_loss)])
+        plt.xlabel('Number of Iterations.')
+        plt.ylabel('Training Loss')
+        plt.show()
+
+        # plt.plot(x_axis, train_loss, 'bo')
         avg_train_loss = sum(train_loss)/len(train_loss)
         avg_train_acc = sum(train_accuracy) / len(train_accuracy)
         avg_test_acc = sum(test_accuracy) / len(test_accuracy)
@@ -326,41 +346,44 @@ class Cnn_Magic:
         return out
 
 
+def get_data(filename):
+    '''
+    Read and Pre process the data
+    :param filename: Input file name
+    :return: preprocessed data
+    '''
+    data = read_data(filename)
+    # create dictionaries , tokenize ,etc
+    index_word_dict, word_index_dict = create_word_dict(data)
+    tokenize_data = tokenize_pad_sentences(data, word_index_dict)
+    tokenize_data = one_hot_output(tokenize_data)
 
-#Reading training data
-train_data = read_data("../data/train_sml.csv")
-#create dictionaries , tokenize ,etc
-index_word_dict, word_index_dict = create_word_dict(train_data)
-tokenize_data = tokenize_pad_sentences(train_data, word_index_dict)
-tokenize_data = one_hot_output(tokenize_data)
+    # extract features
+    data_x = list(tokenize_data['indexed_text'])
+    # extract labels
+    data_y = np.array(list(tokenize_data['author']))
 
-# extract features
-data = list(tokenize_data['indexed_text'])
-# extract labels
-data_labels = np.array(list(tokenize_data['author']))
+    data_x = np.array(data_x)
+    # reshape to fit tensors dimensions
+    data_x = data_x.reshape(data_x.shape[0], Max_sentence_length, 1, 1)
+    return data_x, data_y
 
-N = len (train_data)
-N_FEATURES = len(data[1])
-num_test_sample = int(N * test_ratio )
+## Main
 
-data = np.array(data)
-#reshape to fit tensors dimensions
-data = data.reshape(N, N_FEATURES, 1, 1)
+# 1. Reading and processing training data
+train_data_x, train_data_y = get_data("../data/training_data.csv")
 
-# Separate training and testing data
-indices = list(np.random.permutation(N))
-test_idx, training_idx = indices[:num_test_sample], indices[num_test_sample:-1]
-train_data, test_data = data[training_idx], data[test_idx]
-train_labels , test_labels = data_labels[training_idx], data_labels[test_idx]
+#  2.Reading and processing test data
+test_data_x, test_data_y = get_data("../data/test_data.csv")
 
-#Create CNN class object
+# 3. Create CNN class object
 cnn_model = Cnn_Magic()
 
-# create and run model
-train_loss, train_acc, test_acc = cnn_model.experiment(train_X=train_data ,train_y=train_labels,
-                                    test_X=test_data,test_y=test_labels, num_train_sample=len(train_labels),
+# 4. Create and run model
+train_loss, train_acc, test_acc = cnn_model.experiment(train_X=train_data_x ,train_y=train_data_y,
+                                    test_X=test_data_x,test_y=test_data_y, num_train_sample=len(train_data_x),
                                     iterations=training_iterations,lr=learning_rate,bs=batch_size)
 
-# Print final results
+# 5. Print final results
 print ("For learning rate " , learning_rate, " and batch size " , batch_size ," , the Test accuracy is " , test_acc,  ".")
 print ("Finish")
