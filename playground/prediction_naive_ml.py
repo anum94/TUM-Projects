@@ -6,7 +6,8 @@ import matplotlib.pyplot as plt
 
 PADWORD = 'PAD'
 N_CLASSES = 3
-training_iterations = 2
+# Epochs
+training_iterations = 500
 learning_rate = 0.01
 batch_size = 128
 
