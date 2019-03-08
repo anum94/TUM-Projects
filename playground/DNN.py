@@ -122,7 +122,7 @@ def get_test_data(filepath, words):
     return testing, test
 
 def prediction_using_saved_model(model_path,TEST_DATA_PATH):
-    num_features = 1626
+
     num_classes = 3
 
 
@@ -130,6 +130,7 @@ def prediction_using_saved_model(model_path,TEST_DATA_PATH):
 
     pd_word = pd.read_csv(VOCAB_PATH)
     loaded_vocab = list(pd_word['0'])
+    num_features = len(loaded_vocab)
 
     # Loading test data
     test_data, test = get_test_data(TEST_DATA_PATH, loaded_vocab)
@@ -195,7 +196,7 @@ model.fit(train_x, train_y, n_epoch=10, batch_size=8, show_metric=True)
 model.save('DNN_model/model.tflearn')
 
 # 6. Loading test data
-test_data, test = get_test_data(TEST_DATA_PATH)
+test_data, test = get_test_data(TEST_DATA_PATH, words)
 #7. Do Prediction
 predicted = model.predict(X=test_data)
 
