@@ -104,7 +104,9 @@ class Cnn_Magic:
         cost = tf.reduce_mean(cost + beta * regularizer)
 
 
-        optimizer = tf.train.RMSPropOptimizer(learning_rate=0.005).minimize(cost)
+
+        optimizer = tf.train.RMSPropOptimizer(learning_rate=learning_rate).minimize(cost)
+
         # Here you check whether the index of the maximum value of the predicted image is equal to the actual labelled image. and both will be a column vector.
         correct_prediction = tf.equal(tf.argmax(pred, 1), tf.argmax(y, 1))
         # calculate accuracy across all the given images and average them out.
@@ -212,7 +214,7 @@ train_labels , test_labels = data_labels[training_idx], data_labels[test_idx]
 
 
 training_iterations = 1000
-learning_rate = 0.03
+learning_rate = 0.01
 batch_size = 128
 
 cnn_model = Cnn_Magic()
