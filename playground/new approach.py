@@ -1,32 +1,77 @@
-
-import os
-import math
 import numpy as np
 import tensorflow as tf
-from tensorflow.contrib.tensorboard.plugins import projector
 import nltk
-from nltk.corpus import gutenberg
+import pandas as pd
 
-alice = gutenberg.raw(fileids='carroll-alice.txt')
+
 default_st = nltk.sent_tokenize
-alice_sentences = default_st(text=alice)
 default_wt = nltk.word_tokenize
-alice_words = [default_wt(sentence.lower()) for sentence in alice_sentences]
-print(len(alice_sentences))
-len_alice = len(alice_sentences)
 
-hamlet = gutenberg.raw(fileids='shakespeare-hamlet.txt')
-hamlet_sentences = default_st(text=hamlet)
-hamlet_words = [default_wt(sentence.lower()) for sentence in hamlet_sentences]
-print(len(hamlet_sentences))
-len_hamlet = len(hamlet_sentences)
+EAP = str()
+MWS = str()
+HPL = str()
+train_text = pd.read_csv("../data/train.csv")
+for _, row in train_text.iterrows():
+    if row["author"] == "EAP":
+        EAP += " " + str(row["text"])
+    if row["author"] == "MWS":
+        MWS += " " + str(row["text"])
+    if row["author"] == "HPL":
+        HPL += " " + str(row["text"])
 
-sentences = alice_words + hamlet_words
-len_data = len(sentences)
+eap_sentences = default_st(text=EAP)
+eap_tuples = [nltk.pos_tag(default_wt(sentence)) for sentence in eap_sentences]
+eap_words = [[word[0] for word in sentence] for sentence in eap_tuples]
+eap_tags = [[word[1] for word in sentence] for sentence in eap_tuples]
+eap_len = len(eap_sentences)
+
+mws_sentences = default_st(MWS)
+mws_tuples = [nltk.pos_tag(default_wt(sentence)) for sentence in mws_sentences]
+mws_words = [[word[0] for word in sentence] for sentence in mws_tuples]
+mws_tags = [[word[1] for word in sentence] for sentence in mws_tuples]
+mws_len = len(mws_sentences)
+
+hpl_sentences = default_st(HPL)
+hpl_tuples = [nltk.pos_tag(default_wt(sentence)) for sentence in hpl_sentences]
+hpl_words = [[word[0] for word in sentence] for sentence in hpl_tuples]
+hpl_tags = [[word[1] for word in sentence] for sentence in hpl_tuples]
+hpl_len = len(hpl_sentences)
+
+
+data = hpl_words + mws_words + eap_words
+len_data = len(data)
+
+max_len = 0
+for sent in data:
+    if len(sent)>max_len:
+        max_len = len(sent)
+
+batch_size = 128
+embedding_dimension = 64
+num_classes = 3
+hidden_layer_size = 32
+#element_size = 1
+
+seqlens = []
+
+for sentence_id in range(len_data):
+    seqlens.append(len(data[sentence_id]))
+
+    if len(data[sentence_id]) < max_len:
+        pads = ["PAD"]*(max_len-len(data[sentence_id]))
+        data[sentence_id] = data[sentence_id] + pads
+
+# seqlens *= 2
+labels = [0] * hpl_len + [1] * mws_len + [2] * eap_len
+for i in range(len(labels)):
+    label = labels[i]
+    one_hot_encoding = [0]*3
+    one_hot_encoding[label] = 1
+    labels[i] = one_hot_encoding
 
 word2index_map = {}
 index = 0
-for sent in sentences:
+for sent in data:
     for word in sent:
         if word not in word2index_map:
             word2index_map[word] = index
@@ -35,109 +80,102 @@ for sent in sentences:
 index2word_map = {index: word for word, index in word2index_map.items()}
 
 vocabulary_size = len(index2word_map)
-# Generate skip-gram pairs
-skip_gram_pairs = []
-win_size = 3
-for sent in sentences:
-    for i in range(win_size, len(sent)-win_size):
-        for wn in range(win_size):
-            word_context_pair = [[word2index_map[sent[i-wn]],
-                                word2index_map[sent[i+wn]]],
-                                word2index_map[sent[i]]]
-            skip_gram_pairs.append([word_context_pair[1],
-                                  word_context_pair[0][0]])
-            skip_gram_pairs.append([word_context_pair[1],
-                                 word_context_pair[0][1]])
 
-batch_size = 64
-embedding_dimension = 3 # Three was chosen for visualization.
-negative_samples = 8
-LOG_DIR = "/home/simon/Firma/AI/HegelMachine/HegelPython/logs/word2vec_intro/" # Use absolute path.
 
-def get_skipgram_batch(batch_size):
-    instance_indices = list(range(len(skip_gram_pairs)))
+data_indices = list(range(len(data)))
+
+np.random.shuffle(data_indices)
+data = np.array(data)[data_indices]
+labels = np.array(labels)[data_indices]
+seqlens = np.array(seqlens)[data_indices]
+train_x = data[:(int(len(data_indices)/2))]
+train_y = labels[:int(len(data_indices)/2)]
+train_seqlens = seqlens[:int((len(data_indices)/2))]
+
+test_x = data[(int(len(data_indices)/2)):]
+test_y = labels[int((len(data_indices)/2)):]
+test_seqlens = seqlens[int((len(data_indices)/2)):]
+
+
+def get_sentence_batch(batch_size, data_x,
+                       data_y, data_seqlens):
+    instance_indices = list(range(len(data_x)))
     np.random.shuffle(instance_indices)
     batch = instance_indices[:batch_size]
-    x = [skip_gram_pairs[i][0] for i in batch]
-    y = [[skip_gram_pairs[i][1]] for i in batch]
-    return x, y
+    x = [[word2index_map[word] for word in data_x[i]]
+         for i in batch]
+    y = [data_y[i] for i in batch]
+    seqlens = [data_seqlens[i] for i in batch]
+    return x, y, seqlens
 
-# Input data, labels
-train_inputs = tf.placeholder(tf.int32, shape=[batch_size])
-train_labels = tf.placeholder(tf.int32, shape=[batch_size, 1])
 
-# Embedding lookup table currently only implemented in CPU
+_inputs = tf.placeholder(tf.int32, shape=[batch_size, max_len])
+_labels = tf.placeholder(tf.float32, shape=[batch_size, num_classes])
+# seqlens for dynamic calculation
+_seqlens = tf.placeholder(tf.int32, shape=[batch_size])
+
 with tf.name_scope("embeddings"):
     embeddings = tf.Variable(
-        tf.random_uniform([vocabulary_size, embedding_dimension],
+        tf.random_uniform([vocabulary_size,
+                           embedding_dimension],
                           -1.0, 1.0), name='embedding')
-    # This is essentialy a lookup table
-    embed = tf.nn.embedding_lookup(embeddings, train_inputs)
-
-# Create variables for the NCE loss
-nce_weights = tf.Variable(
-        tf.truncated_normal([vocabulary_size, embedding_dimension],
-                            stddev=1.0 / math.sqrt(embedding_dimension)))
-nce_biases = tf.Variable(tf.zeros([vocabulary_size]))
+    embed = tf.nn.embedding_lookup(embeddings, _inputs)
 
 
-loss = tf.reduce_mean(
-  tf.nn.nce_loss(weights=nce_weights, biases=nce_biases, inputs=embed, labels=train_labels,
-                 num_sampled=negative_samples, num_classes=vocabulary_size))
-tf.summary.scalar("NCE_loss", loss)
+num_LSTM_layers = 2
+with tf.variable_scope("lstm"):
+    # Define a function that gives the output in the right shape
+    def lstm_cell():
+        return tf.contrib.rnn.BasicLSTMCell(hidden_layer_size, forget_bias=1.0)
+    cell = tf.contrib.rnn.MultiRNNCell(cells=[lstm_cell() for _ in range(num_LSTM_layers)],
+                                       state_is_tuple=True)
+    outputs, states = tf.nn.dynamic_rnn(cell, embed,
+                                        sequence_length = _seqlens,
+                                        dtype=tf.float32)
 
-# Learning rate decay
-global_step = tf.Variable(0, trainable=False)
-learningRate = tf.train.exponential_decay(learning_rate=0.1,
-                                          global_step=global_step,
-                                          decay_steps=1000,
-                                          decay_rate=0.95,
-                                          staircase=True)
-train_step = tf.train.GradientDescentOptimizer(learningRate).minimize(loss)
-merged = tf.summary.merge_all()
+weights = {
+     'linear_layer': tf.Variable(tf.truncated_normal([hidden_layer_size, num_classes],
+                                                     mean=0, stddev=.01))
+ }
+biases = {
+    'linear_layer': tf.Variable(tf.truncated_normal([num_classes], mean=0, stddev=.01))
+}
+ # extract the last relevant output and use in a linear layer
+final_output = tf.matmul(states[num_LSTM_layers-1][1],
+                         weights["linear_layer"]) + biases["linear_layer"]
+
+softmax = tf.nn.softmax_cross_entropy_with_logits(logits=final_output,
+                                                  labels=_labels)
+cross_entropy = tf.reduce_mean(softmax)
+
+train_step = tf.train.RMSPropOptimizer(0.001, 0.9).minimize(cross_entropy)
+correct_prediction = tf.equal(tf.argmax(_labels, 1),
+                              tf.argmax(final_output, 1))
+accuracy = (tf.reduce_mean(tf.cast(correct_prediction,
+                                   tf.float32)))*100
 
 with tf.Session() as sess:
-    train_writer = tf.summary.FileWriter(LOG_DIR,
-                                         graph=tf.get_default_graph())
-    saver = tf.train.Saver()
+    sess.run(tf.global_variables_initializer())
 
-    with open(os.path.join(LOG_DIR, 'metadata.tsv'), "w") as metadata:
-        metadata.write('Name\tClass\n')
-        for k, v in index2word_map.items():
-            metadata.write('%s\t%d\n' % (v, k))
-
-    config = projector.ProjectorConfig()
-    embedding = config.embeddings.add()
-    embedding.tensor_name = embeddings.name
-    # Link this tensor to its metadata file (e.g. labels).
-    embedding.metadata_path = os.path.join(LOG_DIR, 'metadata.tsv')
-    projector.visualize_embeddings(train_writer, config)
-
-    tf.global_variables_initializer().run()
-
-    for step in range(10000):
-        x_batch, y_batch = get_skipgram_batch(batch_size)
-        summary, _ = sess.run([merged, train_step],
-                              feed_dict={train_inputs: x_batch,
-                                         train_labels: y_batch})
-        train_writer.add_summary(summary, step)
+    for step in range(1000):
+        x_batch, y_batch, seqlen_batch = get_sentence_batch(batch_size,
+                                                            train_x, train_y,
+                                                            train_seqlens)
+        sess.run(train_step, feed_dict={_inputs: x_batch, _labels: y_batch,
+                                        _seqlens: seqlen_batch})
 
         if step % 100 == 0:
-            saver.save(sess, os.path.join(LOG_DIR, "w2v_model.ckpt"), step)
-            loss_value = sess.run(loss,
-                                  feed_dict={train_inputs: x_batch,
-                                             train_labels: y_batch})
-            print("Loss at %d: %.5f" % (step, loss_value))
+            acc = sess.run(accuracy, feed_dict={_inputs: x_batch,
+                                                _labels: y_batch,
+                                                _seqlens: seqlen_batch})
+            print("Accuracy at %d: %.5f" % (step, acc))
 
-    # Normalize embeddings before using
-    norm = tf.sqrt(tf.reduce_sum(tf.square(embeddings), 1, keep_dims=True))
-    normalized_embeddings = embeddings / norm
-    normalized_embeddings_matrix = sess.run(normalized_embeddings)
-
-ref_word = normalized_embeddings_matrix[word2index_map["alice"]]
-
-cosine_dists = np.dot(normalized_embeddings_matrix, ref_word)
-ff = np.argsort(cosine_dists)[::-1][1:10]
-for f in ff:
-    print(index2word_map[f])
-    print(cosine_dists[f])
+    for test_batch in range(5):
+        x_test, y_test, seqlen_test = get_sentence_batch(batch_size,
+                                                         test_x, test_y,
+                                                         test_seqlens)
+        batch_pred, batch_acc = sess.run([tf.argmax(final_output, 1), accuracy],
+                                         feed_dict={_inputs: x_test,
+                                                    _labels: y_test,
+                                                    _seqlens: seqlen_test})
+        print("Test batch accuracy %d: %.5f" % (test_batch, batch_acc))
