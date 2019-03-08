@@ -51,6 +51,8 @@ You just need to run `cli.py`:
 The command will run DNN and PredByFreq methods using pre-trained models and test_data.csv. And print the latest
 testing results for LSTM and CNN.
 
+
+#### Run single model
 You can run each method individually using CLI command:
 
 ``python cli.py run --method lstm``
@@ -66,23 +68,11 @@ You can also set the test ratio of the data for CNN method (i.e. use 40% of data
 ``python cli.py run --method cnn --test_ratio 0.4``
 
 
+#### Train single model
+
 You can also train your own model using provided or different data:
 
-``python cli.py train --method --model_path --train_data_path "path/to/train/data.csv"``
-
-
-
-
- 
-The command will randomly divide data in "data/data.csv" to training and testing before running the models. 
-It will generate two files: _training_data.csv_ and _testing_data.csv_. By default, 20% of the data is used as testing 
-data, and 80% as training data. If you prefer to have a different ratio (i.e 40% testing data), you can just run 
-the below command:
-
-``python cli.py run --test_ratio 0.4``
-
-
-Running the above command will generate testing and training accuracy for each method. 
+``python cli.py train --method --model_path "path/to/dir/" --train_data_path "path/to/train/data.csv"``
 
 
 ## Data
@@ -93,38 +83,3 @@ There are 3 csv files provided for testing and training:
 as part of the process.
 - train.csv: 80% of original data. Used for training of DNN and Prediction By Frequency methods
 - test.csv: The rest 20% of original data: Used for testing of DNN and Prediction By Frequency methods
-
-## Playground
-
-CLI allow a user to test certain method using training models or reading different data. Or methods even can be used for 
-different text classification problem if the data is in the required format.
-
-#### Test single model
-
-You can test single model. METHOD_NAME must be one of the trained methods below:
-_**dnn**_ for deep neural network; _**rnn**_ for recurrence neural network; _**cnn**_ for convolutional neural network; 
-predByFreq for term frequency based approach
-``python cli.py test_method --method METHOD_NAME``
-
-You can use different testing data:
-``python cli.py test_method --method METHOD_NAME --test_data  "PATH_TO_TEST_DATA"``
-
-The command will print out accuracy for the given method and testing data
-
-#### Train a model
-
-You can re-train a model for provided methodology with original data.
-model_path flag is the path to store the generated model
-
-
-``python cli.py train_method --method METHOD_NAME --model_path MODEL_PATH``
-
-You can train with different data as well:
-
-``python cli.py train_method --method METHOD_NAME --train_data "PATH_TO_TRAIN_DATA" --model_path MODEL_PATH``
-
-#### Predict a sentence
-
-It is possible to predict a sentence using CLI
-
-``python cli.py predict_sentence --method METHOD_NAME --sentence "This is scary sentence to predict" ``

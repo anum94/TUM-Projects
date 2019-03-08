@@ -8,8 +8,8 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.preprocessing import OneHotEncoder
 stemmer = nl.stem.lancaster.LancasterStemmer()
 
-TRAIN_DATA_PATH = '../data/training_data.csv'
-TEST_DATA_PATH = '../data/testing_data.csv'
+TRAIN_DATA_PATH = '../data/train_data.csv'
+TEST_DATA_PATH = '../data/test_data.csv'
 VOCAB_PATH = 'DNN_model/vocab.csv'
 
 def read_file(file_path):
@@ -122,7 +122,7 @@ def get_test_data(filepath, words):
     return testing, test
 
 def prediction_using_saved_model(model_path,TEST_DATA_PATH):
-    num_features = 1626
+    num_features = 11679
     num_classes = 3
 
 
@@ -196,6 +196,7 @@ model.save('DNN_model/model.tflearn')
 
 # 6. Loading test data
 test_data, test = get_test_data(TEST_DATA_PATH)
+
 #7. Do Prediction
 predicted = model.predict(X=test_data)
 
