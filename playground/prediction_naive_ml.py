@@ -10,6 +10,7 @@ N_CLASSES = 3
 training_iterations = 500
 learning_rate = 0.01
 batch_size = 128
+train_ratio = 0.2
 
 # because we have seprarted the testing and training data therefore we need an upper bound that would
 #for both data files
@@ -372,10 +373,16 @@ def get_data(filename):
 ## Main
 
 # 1. Reading and processing training data
-train_data_x, train_data_y = get_data("../data/training_data.csv")
+data_x, data_y = get_data("../data/train.csv")
 
-#  2.Reading and processing test data
-test_data_x, test_data_y = get_data("../data/test_data.csv")
+#  2. Breaking data into test and train test
+N = len(data_x)
+indices = list(np.random.permutation(N))
+num_test_sample = int (N *  train_ratio)
+test_idx, training_idx = indices[:num_test_sample], indices[num_test_sample:-1]
+train_data_x, test_data_x = data_x[training_idx], data_x[test_idx]
+train_data_y , test_data_y = data_y[training_idx], data_y[test_idx]
+
 
 # 3. Create CNN class object
 cnn_model = Cnn_Magic()
